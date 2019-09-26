@@ -1,0 +1,117 @@
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  annotations:
+    fabric8.io/iconUrl: img/icons/camel.svg
+    fabric8.io/metrics-path: dashboard/file/camel-routes.json/?var-project=common&var-version=1.0.0
+  labels:
+    app: common
+    group: org.demo
+    provider: fabric8
+    version: 1.0.0
+  name: common
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    app: common
+    group: org.demo
+    provider: fabric8
+  strategy:
+    activeDeadlineSeconds: 21600
+    resources: {}
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 3600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      annotations:
+        fabric8.io/iconUrl: img/icons/camel.svg
+        fabric8.io/metrics-path: dashboard/file/camel-routes.json/?var-project=common&var-version=1.0.0
+      creationTimestamp: null
+      labels:
+        app: common
+        group: org.demo
+        provider: fabric8
+        version: 1.0.0
+    spec:
+      containers:
+      - env:
+        - name: SPRING_APPLICATION_JSON
+          value: '{"server":{"undertow":{"io-threads":1, "worker-threads":2 }}}'
+        - name: JAEGER_SERVICE_NAME
+          value: promotion
+        - name: JAEGER_AGENT_HOST
+          value: jaeger-agent
+        - name: JAEGER_SAMPLER_PARAM
+          value: "0.5"
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        image: docker-registry.default.svc:5000/p4-demo/common@sha256:adee20038d961c5a7d9e728b3004043ff20541e1f9a6875b1d5c3e1f1dfc7f3b
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 180
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: spring-boot
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9779
+          name: prometheus
+          protocol: TCP
+        - containerPort: 8778
+          name: jolokia
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 256Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        securityContext:
+          privileged: false
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+  test: false
+  triggers:
+  - type: ConfigChange
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - spring-boot
+      from:
+        kind: ImageStreamTag
+        name: common:1.0.0
+        namespace: p4-demo
+    type: ImageChange
