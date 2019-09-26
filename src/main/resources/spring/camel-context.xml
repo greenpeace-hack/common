@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:camel="http://camel.apache.org/schema/spring"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+  <!-- Helper classes  -->
+  <bean id="helper" class="org.demo.Helper"/>
+
+
+  <!-- Define a traditional camel context here -->
+  <camelContext id="camel" xmlns="http://camel.apache.org/schema/spring">
+
+
+
+    <!-- REST configuration -->
+    <restConfiguration
+      apiContextPath="api-docs"
+      component="servlet"
+      contextPath="camel"
+      enableCORS="true"
+      port="{{camelrest.port}}"
+      host="{{camelrest.host}}">
+        <endpointProperty key="disableStreamCache" value="true"/>
+        <apiProperty key="cors" value="true"/>
+        <apiProperty key="api.title" value="Content Server REST APIs"/>
+        <apiProperty key="api.version" value="1.0.0"/>
+    </restConfiguration>
+
+
+
+
+    <!-- Document API -->
+    <rest path="/common/events">
+
+        <!-- test endpoint for 3Scale and OCP health probe -->
+        <get produces="application/json" uri="/test">
+            <description>Test service</description>
+            <to uri="direct:test"/>
+        </get>
+
+
+        <post produces="application/json" uri="/push">
+            <description>push event</description>
+
+                <param name="body" required="false" type="body"/>
+
+            <to uri="direct:push"/>
+        </post>
+    </rest>
+
+
+    <!-- route to probe Fuse from 3Scale and OpenShift -->
+    <route id="test">
+        <from uri="direct:test"/>
+        <log message="test for 3Scale incoming: ${body}"/>
+        <!-- <bean ref="helper" method="setAck"/> -->
+      <setBody>
+        <constant>{"status":"success"}</constant>
+      </setBody>
+        <log message=">>> ${body}"/>
+    </route>
+
+
+    <!-- Main route -->
+    <route id="push">
+      <from uri="direct:push"/>
+
+        <convertBodyTo type="String"/>
+        <log message="sending to Kafka: ${body}"/>
+        <removeHeaders pattern="*"/>
+        <to uri="kafka:common?brokers=p4-demo-cluster-kafka-brokers.p4-demo.svc:9092"/>
+        <setBody>
+            <constant>{"status":"success"}</constant>
+        </setBody>
+
+    </route>
+
+
+
+<!-- 
+    <route id="events-ingress">
+      
+        <from uri="kafka:{{kafka.topic}}?brokers={{kafka.host}}:9092&amp;seekTo=beginning"/>
+
+
+      <to uri="direct:message-processor"/>
+    </route>
+
+
+    <route id="message-processor">
+      <from uri="direct:message-processor"/>
+
+      <log message="Kafka message: ${body}"/>
+
+      <to uri="direct:parse-kafka-message"/>
+      <bean ref="helper" method="streamPrices"/>
+    </route>
+
+
+    <route id="parse-kafka-message">
+      <from uri="direct:parse-kafka-message"/>
+      <to uri="dataformat:json-jackson:unmarshal"/>
+      <setHeader headerName="id">
+        <simple>${body.get('id')}</simple>
+      </setHeader>
+      <setHeader headerName="last">
+        <simple>${body.get('last')}</simple>
+      </setHeader>
+      <setBody>
+        <simple>${body.get('payload')}</simple>
+      </setBody>
+    </route>
+
+
+    <route id="sim-kafka-message">
+      <from uri="direct:sim-kafka-message"/>
+
+      <setHeader headerName="simid">
+        <simple>user1</simple>
+      </setHeader>
+      <setHeader headerName="simpayload">
+        <simple>apayload</simple>
+      </setHeader>
+
+          <setHeader headerName="simlast">
+            <simple>bean:helper?method=isLast</simple>
+          </setHeader>
+
+
+      <setBody>
+        <simple>${header.payload}</simple>
+      </setBody>
+
+
+      <setBody>
+        <simple>{"id":"${header.simid}","last":"${header.simlast}","payload":"${header.simpayload}"}</simple>
+      </setBody>
+
+    </route>
+ -->
+
+  </camelContext>
+
+</beans>
